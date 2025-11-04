@@ -1,11 +1,10 @@
-import express from "express";
+const express = require("express");
 const router = express.Router();
-import {
+const {
   createPaymentIntent,
   createPaymentMethod,
   createWebhookHandler,
-} from "../controller/stripeController";
-import { create } from "domain";
+} = require("../controller/stripeController.js");
 
 router.post("/create-payment-intent", createPaymentIntent);
 
@@ -17,4 +16,4 @@ router.post(
   createWebhookHandler
 );
 
-export default router;
+module.exports = router;
