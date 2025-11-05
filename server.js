@@ -1,7 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
 const stripe = require("./routes/stripe");
-
 dotenv.config();
 const PORT = process.env.PORT || 3000;
 
