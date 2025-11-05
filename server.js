@@ -1,6 +1,9 @@
 const express = require("express");
 const dotenv = require("dotenv");
-const stripe = require("./routes/stripe");
+const stripeRoutes = require("./routes/stripeRoutes");
+const matchRoutes = require("./routes/matchRoutes");
+const profileRoutes = require("./routes/profileRoutes");
+
 dotenv.config();
 const PORT = process.env.PORT || 3000;
 
@@ -8,7 +11,9 @@ const app = express();
 
 app.use(express.json());
 
-app.use("/api/stripe", stripe);
+app.use("/api/stripe", stripeRoutes);
+app.use("/api/match", matchRoutes);
+app.use("/api/profile", profileRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
