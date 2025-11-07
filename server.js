@@ -1,5 +1,6 @@
 const express = require("express");
 const dotenv = require("dotenv");
+const paypalRoutes = require("./routes/paypalRoutes");
 const stripeRoutes = require("./routes/stripeRoutes");
 const matchRoutes = require("./routes/matchRoutes");
 const profileRoutes = require("./routes/profileRoutes");
@@ -11,6 +12,7 @@ const app = express();
 
 app.use(express.json());
 
+app.use("/api/paypal", paypalRoutes);
 app.use("/api/stripe", stripeRoutes);
 app.use("/api/match", matchRoutes);
 app.use("/api/profile", profileRoutes);

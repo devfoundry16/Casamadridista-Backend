@@ -1,6 +1,6 @@
 const axios = require("axios");
 const API_KEY = process.env.API_FOOTBALL_KEY; // Store in .env
-const BASE_URL = "https://v3.football.api-sports.io/";
+const BASE_URL = process.env.API_FOOTBALL_BASE_URL;
 
 const api = axios.create({
   baseURL: BASE_URL,

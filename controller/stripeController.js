@@ -32,10 +32,10 @@ const createPaymentIntent = async (req, res) => {
       paymentIntent: paymentIntent.client_secret,
       ephemeralKey: ephemeralKey.secret,
       customer: customer.id,
+      error: false,
     });
-
-    res.json({ clientSecret: paymentIntent.client_secret });
   } catch (error) {
+    console.log(error.message);
     res.status(500).json({ error: error.message });
   }
 };
