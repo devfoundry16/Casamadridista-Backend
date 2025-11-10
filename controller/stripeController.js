@@ -4,34 +4,45 @@ const dotenv = require("dotenv");
 dotenv.config();
 const stripeInstance = new Stripe(process.env.STRIPE_SECRET_KEY); // Use test secret key
 const createPaymentIntent = async (req, res) => {
-  const { amount, orderId, user } = req.body; // Amount in cents (e.g., 1000 for $10)
+  const { amount, orderId, user, stripeCustomerId } = req.body; // Amount in cents (e.g., 1000 for $10)
 
-  console.log("amount:", amount, "orderId:", orderId, "user:", user);
-
+  console.log(
+    "amount:",
+    amount,
+    "orderId:",
+    orderId,
+    "user address:",
+    user.address,
+    "customerId:",
+    stripeCustomerId
+  );
   try {
-    const customer = await stripeInstance.customers.create({
-      name: user.name,
-      email: user.email,
-      address: user.address,
-    });
+    let customerId = stripeCustomerId;
+    if (customerId == "") {
+      const customer = await stripeInstance.customers.create({
+        name: user.name,
+        email: user.email,
+        address: user.address,
+      });
+      customerId = customer.id;
+    }
     const ephemeralKey = await stripeInstance.ephemeralKeys.create(
-      { customer: customer.id },
+      { customer: customerId },
       { apiVersion: "2025-09-30.clover" }
     );
     // Optionally create/retrieve a Stripe customer for the user
     const args = {
       amount: amount * 100,
       currency: "usd",
-      customer: customer.id,
+      customer: customerId,
       automatic_payment_methods: { enabled: true },
       metadata: { order_id: orderId },
     };
     const paymentIntent = await stripeInstance.paymentIntents.create(args);
-    console.log(paymentIntent);
     res.json({
       paymentIntent: paymentIntent.client_secret,
       ephemeralKey: ephemeralKey.secret,
-      customer: customer.id,
+      customer: customerId,
       error: false,
     });
   } catch (error) {
