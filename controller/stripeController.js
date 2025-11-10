@@ -20,7 +20,7 @@ const createPaymentIntent = async (req, res) => {
     );
     // Optionally create/retrieve a Stripe customer for the user
     const args = {
-      amount,
+      amount: amount * 100,
       currency: "usd",
       customer: customer.id,
       automatic_payment_methods: { enabled: true },
