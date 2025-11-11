@@ -2,13 +2,12 @@ const express = require("express");
 const router = express.Router();
 const {
   createPaymentIntent,
-  createPaymentMethod,
+  createCustomer,
   createWebhookHandler,
 } = require("../controller/stripeController.js");
 
 router.post("/create-payment-intent", createPaymentIntent);
-
-router.post("/create-payment-method", createPaymentMethod);
+router.post("/create-cusomer", createCustomer);
 // Webhook for handling payment success (recommended for production-like simulation)
 router.post(
   "/webhook",

@@ -30,12 +30,12 @@ const createPaymentIntent = async (req, res) => {
       { customer: customerId },
       { apiVersion: "2025-09-30.clover" }
     );
-    // Optionally create/retrieve a Stripe customer for the user
+
     const args = {
       amount: amount * 100,
       currency: "usd",
       customer: customerId,
-      automatic_payment_methods: { enabled: true },
+      payment_method: "pm_card_visa",
       metadata: { order_id: orderId },
     };
     const paymentIntent = await stripeInstance.paymentIntents.create(args);
@@ -50,30 +50,14 @@ const createPaymentIntent = async (req, res) => {
     res.status(500).json({ error: error.message });
   }
 };
-const createPaymentMethod = async (req, res) => {
-  // Implementation for creating a payment method if needed
-  const { cardDetails, billingDetails } = req.body;
-
-  try {
-    const paymentMethod = await stripeInstance.paymentMethods.create({
-      type: "card",
-      card: {
-        number: cardDetails.number,
-        exp_month: cardDetails.exp_month,
-        exp_year: cardDetails.exp_year,
-        cvc: cardDetails.cvc,
-      },
-      billing_details: {
-        name: billingDetails.name,
-        email: billingDetails.email,
-        address: billingDetails.address,
-      },
-    });
-
-    res.json({ paymentMethodId: paymentMethod.id });
-  } catch (error) {
-    res.status(500).json({ error: error.message });
-  }
+const createCustomer = async (req, res) => {
+  const { user } = req.body;
+  const customer = await stripeInstance.customers.create({
+    name: user.name,
+    email: user.email,
+    address: user.address,
+  });
+  res.json({ customerId: customer.id });
 };
 const createWebhookHandler = async (req, res) => {
   const sig = req.headers["stripe-signature"];
@@ -105,6 +89,6 @@ const createWebhookHandler = async (req, res) => {
 
 module.exports = {
   createPaymentIntent,
-  createPaymentMethod,
+  createCustomer,
   createWebhookHandler,
 };
