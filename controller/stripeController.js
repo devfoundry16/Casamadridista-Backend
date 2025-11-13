@@ -40,6 +40,7 @@ const createPaymentIntent = async (req, res) => {
     };
     const paymentIntent = await stripeInstance.paymentIntents.create(args);
     res.json({
+      paymentIntentId: paymentIntent.id,
       paymentIntent: paymentIntent.client_secret,
       ephemeralKey: ephemeralKey.secret,
       customer: customerId,
