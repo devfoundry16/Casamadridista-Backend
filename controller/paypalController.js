@@ -1,18 +1,23 @@
 const axios = require("axios");
 
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
-const PAYPAL_SECRET = process.env.PAYPAL_CLIENT_SECRET;
-const PAYPAL_BASE_URL = process.env.PAYPAL_BASE_URL; // Use live for production
+const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
+const PAYPAL_MODE = process.env.PAYPAL_MODE || "sandbox";
 
-// Generate access token
+const PAYPAL_API_URL =
+  PAYPAL_MODE === "sandbox"
+    ? "https://api.sandbox.paypal.com"
+    : "https://api.paypal.com";
+
+/**
+ * Get PayPal Access Token
+ */
 const getAccessToken = async () => {
-  const auth = Buffer.from(`${PAYPAL_CLIENT_ID}:${PAYPAL_SECRET}`).toString(
-    "base64"
-  );
-
+  const auth = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`);
+  console.log("PayPal Auth:", auth);
   try {
     const response = await axios.post(
-      `${PAYPAL_BASE_URL}/v1/oauth2/token`,
+      `${PAYPAL_API_URL}/v1/oauth2/token`,
       "grant_type=client_credentials",
       {
         headers: {
@@ -23,39 +28,58 @@ const getAccessToken = async () => {
     );
     return response.data.access_token;
   } catch (error) {
-    console.error("Error getting access token:", error);
-    throw error;
+    console.error(
+      "PayPal Access Token Error:",
+      error.response?.data || error.message
+    );
+    throw new Error("Failed to get PayPal access token");
   }
 };
 
-const createPaymentIntent = async (req, res) => {
+/**
+ * Create a PayPal order (Checkout v2 API)
+ */
+const createOrder = async (req, res) => {
   try {
-    const { amount, currency = "USD", description } = req.body;
-    const accessToken = await getAccessToken();
+    const {
+      amount,
+      currency = "USD",
+      orderDescription,
+      pendingOrderId,
+    } = req.body;
 
-    const paymentData = {
-      intent: "sale",
-      payer: {
-        payment_method: "paypal",
-      },
-      transactions: [
+    if (!amount) {
+      return res.status(400).json({ error: "Amount is required" });
+    }
+
+    const accessToken = await getAccessToken();
+    const orderData = {
+      intent: "CAPTURE",
+      purchase_units: [
         {
           amount: {
-            total: amount,
-            currency: currency,
+            currency_code: currency,
+            value: (amount / 100).toFixed(2), // Convert cents to dollars
           },
-          description: description,
+          description: orderDescription || "Order Payment",
+          custom_id: pendingOrderId?.toString() || "",
         },
       ],
-      redirect_urls: {
-        return_url: "https://your-app.com/success",
-        cancel_url: "https://your-app.com/cancel",
+      application_context: {
+        return_url: `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/paypal/return`,
+        cancel_url: `${
+          process.env.FRONTEND_URL || "http://localhost:3000"
+        }/paypal/cancel`,
+        shipping_preference: "NO_SHIPPING",
+        user_action: "PAY_NOW",
       },
     };
 
     const response = await axios.post(
-      `${PAYPAL_BASE_URL}/v1/payments/payment`,
-      paymentData,
+      `${PAYPAL_API_URL}/v2/checkout/orders`,
+      orderData,
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -64,28 +88,35 @@ const createPaymentIntent = async (req, res) => {
       }
     );
 
-    // Find approval URL
-    const approvalUrl = response.data.links.find(
-      (link) => link.rel === "approval_url"
-    ).href;
-
-    res.json({
-      paymentId: response.data.id,
-      approvalUrl: approvalUrl,
-    });
+    res.json(response.data);
   } catch (error) {
-    console.error("Error creating payment:", error);
-    res.status(500).json({ error: "Failed to create payment" });
+    console.error(
+      "PayPal Create Order Error:",
+      error.response?.data || error.message
+    );
+    res.status(500).json({
+      error: "Failed to create PayPal order",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 };
-const executePayment = async (req, res) => {
+
+/**
+ * Capture an approved PayPal order
+ */
+const captureOrder = async (req, res) => {
   try {
-    const { paymentId, payerId } = req.body;
+    const { orderID, payerID, pendingOrderId } = req.body;
+
+    if (!orderID) {
+      return res.status(400).json({ error: "orderID is required" });
+    }
+
     const accessToken = await getAccessToken();
 
     const response = await axios.post(
-      `${PAYPAL_BASE_URL}/v1/payments/payment/${paymentId}/execute`,
-      { payer_id: payerId },
+      `${PAYPAL_API_URL}/v2/checkout/orders/${orderID}/capture`,
+      {},
       {
         headers: {
           Authorization: `Bearer ${accessToken}`,
@@ -94,14 +125,101 @@ const executePayment = async (req, res) => {
       }
     );
 
+    const captureData = response.data;
+
+    // TODO: Update order in your database with PayPal payment details
+    // Example database update:
+    // await WooCommerceAPI.updateOrder(pendingOrderId, {
+    //   payment_method: 'paypal',
+    //   payment_method_title: 'PayPal',
+    //   set_paid: true,
+    //   meta_data: [
+    //     { key: '_paypal_order_id', value: orderID },
+    //     { key: '_paypal_payer_id', value: payerID }
+    //   ]
+    // });
+
     res.json({
       success: true,
-      payment: response.data,
+      status: captureData.status,
+      orderID: captureData.id,
+      payer: captureData.payer,
+      purchaseUnits: captureData.purchase_units,
     });
   } catch (error) {
-    console.error("Error executing payment:", error);
-    res.status(500).json({ error: "Failed to execute payment" });
+    console.error(
+      "PayPal Capture Order Error:",
+      error.response?.data || error.message
+    );
+    res.status(500).json({
+      error: "Failed to capture PayPal order",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
   }
 };
 
-module.exports = { createPaymentIntent, executePayment };
+/**
+ * Get PayPal order details
+ */
+const getOrderDetails = async (req, res) => {
+  try {
+    const { orderId } = req.params;
+
+    if (!orderId) {
+      return res.status(400).json({ error: "orderId is required" });
+    }
+
+    const accessToken = await getAccessToken();
+
+    const response = await axios.get(
+      `${PAYPAL_API_URL}/v2/checkout/orders/${orderId}`,
+      {
+        headers: {
+          Authorization: `Bearer ${accessToken}`,
+        },
+      }
+    );
+
+    res.json(response.data);
+  } catch (error) {
+    console.error(
+      "PayPal Get Order Error:",
+      error.response?.data || error.message
+    );
+    res.status(500).json({
+      error: "Failed to get PayPal order details",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  }
+};
+
+/**
+ * PayPal return URL handler
+ */
+const handleReturn = (req, res) => {
+  const { token, orderId } = req.query;
+
+  res.json({
+    success: true,
+    message: "Payment approved, please complete the capture",
+    paypalOrderId: token || orderId,
+  });
+};
+
+/**
+ * PayPal cancel URL handler
+ */
+const handleCancel = (req, res) => {
+  res.status(400).json({
+    success: false,
+    message: "Payment cancelled by user",
+  });
+};
+
+module.exports = {
+  createOrder,
+  captureOrder,
+  getOrderDetails,
+  handleReturn,
+  handleCancel,
+};

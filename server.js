@@ -16,6 +16,7 @@ app.use("/api/paypal", paypalRoutes);
 app.use("/api/stripe", stripeRoutes);
 app.use("/api/match", matchRoutes);
 app.use("/api/profile", profileRoutes);
+app.use("/api/paypal", paypalRoutes);
 
 // Health check
 app.get("/health", (req, res) => {
