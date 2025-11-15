@@ -1,20 +1,23 @@
 const axios = require("axios");
-
+const dotenv = require("dotenv");
+dotenv.config();
 const PAYPAL_CLIENT_ID = process.env.PAYPAL_CLIENT_ID;
 const PAYPAL_CLIENT_SECRET = process.env.PAYPAL_CLIENT_SECRET;
 const PAYPAL_MODE = process.env.PAYPAL_MODE || "sandbox";
 
 const PAYPAL_API_URL =
   PAYPAL_MODE === "sandbox"
-    ? "https://api.sandbox.paypal.com"
+    ? "https://sandbox.paypal.com"
     : "https://api.paypal.com";
 
 /**
  * Get PayPal Access Token
  */
 const getAccessToken = async () => {
-  const auth = btoa(`${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`);
-  console.log("PayPal Auth:", auth);
+  const auth = Buffer.from(
+    `${PAYPAL_CLIENT_ID}:${PAYPAL_CLIENT_SECRET}`
+  ).toString("base64");
+  console.log(auth);
   try {
     const response = await axios.post(
       `${PAYPAL_API_URL}/v1/oauth2/token`,
@@ -59,7 +62,7 @@ const createOrder = async (req, res) => {
         {
           amount: {
             currency_code: currency,
-            value: (amount / 100).toFixed(2), // Convert cents to dollars
+            value: amount.toFixed(2), // Convert cents to dollars
           },
           description: orderDescription || "Order Payment",
           custom_id: pendingOrderId?.toString() || "",
